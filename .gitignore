@@ -1,0 +1,20 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Secrets -- API keys live in .env files, which must never be committed
+.env
+.env.*
+!.env.example
+
+# Vercel CLI link folder
+.vercel/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,109 @@
+LOGISIM CIRCUIT BOT — POSTER CONTENT
+======================================
+
+
+BACKGROUND
+----------
+This project builds an AI tutor that helps computer architecture
+students practice outside class. Right now it focuses on digital
+logic circuits: a student describes a circuit in plain language
+(gates, adders, a 4-bit ALU), and the assistant builds it step by
+step, narrating each gate as it's added, then lets the student click
+pins to watch the logic run live. This turns a textbook diagram into
+something students can watch get built and test themselves. Topics
+like MIPS pipelines and performance analysis are planned next, once
+the circuit-building core is solid.
+
+
+RESULTS
+-------
+
+Technical Completeness
+  Pre-fix:  The 4-bit adder's Logisim (.circ) export had invalid
+            wiring — its wires were drawn diagonally, which real
+            Logisim rejects (only horizontal/vertical wires are
+            valid).
+  Post-fix: 4-bit adder's wiring corrected to proper right-angle
+            routing; verified against the expected truth table
+            output across all input combinations.
+
+  This is the strongest data point — a quantifiable defect caught
+  and corrected through human evaluation, speaking directly to RQ4
+  (residual effort required after AI generation).
+
+Feature Completeness (verified against the actual codebase)
+  - 9/9 circuit templates implemented — NOT/AND/OR/XOR gates, half
+    adder, full adder, 2-to-1 mux, 4-bit adder, 4-bit ALU
+  - 9/9 simulate correctly — interactive click-to-toggle logic
+    verified against truth tables, cross-checked byte-for-byte
+    between the Python and JavaScript versions
+  - 8/9 export to valid Logisim .circ files — the 4-bit ALU's
+    export still has an unresolved wiring defect (same class of
+    bug fixed on the 4-bit adder), left unfixed by design
+    decision, not oversight
+
+
+LIMITATIONS
+-----------
+  - Fixed circuit library — the bot can only build the 9 circuits
+    it ships with. A request for anything else (a decoder, a
+    register, a 3-input gate) gets a list of what is available
+    instead of a new circuit.
+
+  - Keyword matching, not true language understanding — requests
+    must contain recognizable terms ("half adder", "mux", "ALU").
+    Reworded, misspelled, or open-ended questions fall through.
+
+  - Limited AI API use — the only AI hook is an optional Gemini
+    call in the desktop app, off by default. It only picks which
+    of the 9 circuits was meant; it does not design circuits or
+    answer questions. Turning it on requires each user's own API
+    key, is subject to free-tier rate limits, and sends what the
+    student types to Google. The web version has no AI API at all,
+    because a browser-only page cannot keep an API key secret.
+
+  - Combinational logic only — the simulator handles 2-input
+    AND/OR/XOR and NOT gates on single-bit wires. Sequential
+    circuits (flip-flops, clocks, registers) and multi-bit buses
+    are not supported, which blocks the planned MIPS pipeline work.
+
+  - 4-bit ALU export — its .circ file still has the diagonal-wire
+    defect, so 8 of 9 circuits open cleanly in real Logisim.
+
+  - No accounts or saved progress — the web version runs entirely
+    in the browser with no backend, so chat history and work reset
+    when the page is refreshed.
+
+  - Two copies of the circuit data — the Python app and the web
+    app each keep their own copy, so any change must be made twice
+    and re-checked to keep them in agreement.
+
+  - Long walkthroughs for large circuits — the 4-bit ALU takes 80
+    narrated build steps (about 70 seconds at normal speed).
+    Students can speed it up or skip to the end, but the full
+    walkthrough is long.
+
+
+FUTURE WORK
+-----------
+  - Expand the circuit library — add the 4-bit ALU's still-missing
+    pieces (e.g., subtraction/mode-select polish) and the natural
+    next additions: MIPS pipeline stages, registers, and other
+    CSCI-335 building blocks beyond the current 9 templates.
+
+  - Fix the 4-bit ALU's Logisim export — its .circ file still has
+    the diagonal-wire issue (same bug fixed on the 4-bit adder)
+    that was deferred; needs the same Manhattan-routing fix so it
+    opens cleanly in real Logisim.
+
+  - Safely enable natural-language matching on the web version —
+    the Gemini hook was intentionally left out of the browser port
+    since a static page can't hide an API key; a lightweight
+    serverless-function backend (Vercel/Netlify) would let fuzzier
+    phrasing work there too without exposing credentials.
+
+
+REFERENCE
+---------
+Architecture diagram (light-mode, narrow layout for PowerPoint):
+https://claude.ai/code/artifact/e5eccb29-91cb-4b12-8d64-bd7bc40d259b

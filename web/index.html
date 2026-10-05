@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logisim Circuit Bot</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">&#9679; Logisim Circuit Bot</div>
+  <div class="subtitle">CSCI-335 &middot; runs 100% locally in your browser, no server</div>
+  <button id="themeToggle" class="ghost-btn" type="button">&#127769; Dark mode</button>
+</header>
+
+<main class="layout">
+  <section class="panel chat-panel">
+    <div id="log" class="log" aria-live="polite"></div>
+    <form id="inputRow" class="input-row">
+      <input id="entry" type="text" autocomplete="off"
+             placeholder="Describe the circuit you need...">
+      <button id="sendBtn" type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="panel circuit-panel">
+    <div class="hint">watch it build, then click a pin to toggle it</div>
+    <div id="canvasWrap" class="canvas-wrap">
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="stageCaption" class="stage-caption"></div>
+    <div class="build-row">
+      <button id="prevBtn" class="icon-btn" type="button" disabled>&#9664;</button>
+      <button id="playBtn" class="play-btn" type="button" disabled>&#9654; Play</button>
+      <button id="nextBtn" class="icon-btn" type="button" disabled>&#9654;</button>
+      <button id="skipBtn" class="ghost-btn" type="button" disabled>Skip to end &#9197;</button>
+      <button id="speedBtn" class="ghost-btn" type="button" disabled>1x</button>
+      <span id="stepLabel" class="step-label"></span>
+    </div>
+    <pre id="pseudo" class="pseudo"></pre>
+    <div class="actions-row">
+      <button id="saveBtn" class="save-btn" type="button" disabled>&#8595; Save .circ file</button>
+      <span id="status" class="status"></span>
+    </div>
+  </section>
+</main>
+
+<script src="circuits_data.js"></script>
+<script src="circuits_logic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
