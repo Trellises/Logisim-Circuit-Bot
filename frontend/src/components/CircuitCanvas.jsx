@@ -3,10 +3,25 @@
 // Colors come from CSS variables, so theme changes need no re-render.
 import { simulate } from '../lib/simulator';
 
-const SYMBOL = { AND: '&', OR: '≥1', XOR: '=1', NOT: '1' };
+// Standard (ANSI) gate shapes, the same ones Logisim draws, laid out around
+// the ports in simulator.js: output at loc, 2-input gates take inputs at
+// x-50 (y±20), NOT takes its input at x-30.
+const BOX = { NOT: { left: 30, half: 13 }, default: { left: 52, half: 26 } };
+const LABEL_X = { AND: 28, OR: 24, XOR: 20 };
 
-function gateSize(kind) {
-    return kind === 'NOT' ? { width: 42, height: 42 } : { width: 70, height: 62 };
+function gateBody(kind, x, y) {
+    switch (kind) {
+        case 'AND':
+            return `M${x - 50},${y - 25} H${x - 25} A25,25 0 0 1 ${x - 25},${y + 25} H${x - 50} Z`;
+        case 'OR':
+            return `M${x - 50},${y - 25} Q${x - 20},${y - 25} ${x},${y} Q${x - 20},${y + 25} ${x - 50},${y + 25} ` +
+                   `Q${x - 35},${y} ${x - 50},${y - 25} Z`;
+        case 'XOR':
+            return `M${x - 44},${y - 25} Q${x - 16},${y - 25} ${x},${y} Q${x - 16},${y + 25} ${x - 44},${y + 25} ` +
+                   `Q${x - 30},${y} ${x - 44},${y - 25} Z`;
+        default: // NOT: triangle; the bubble is drawn separately
+            return `M${x - 30},${y - 12} L${x - 10},${y} L${x - 30},${y + 12} Z`;
+    }
 }
 
 function Wire({ wire, color, width }) {
@@ -19,23 +34,34 @@ function Wire({ wire, color, width }) {
 
 function Gate({ c, stroke, symbolColor, face, lineWidth, glow, tag }) {
     const [x, y] = c.loc;
-    const { width, height } = gateSize(c.kind);
+    const { left, half } = BOX[c.kind] ?? BOX.default;
+    const isNot = c.kind === 'NOT';
     return (
         <g>
             {glow && (
-                <rect x={x - width - 7} y={y - height / 2 - 7} width={width + 14} height={height + 14}
+                <rect x={x - left - 7} y={y - half - 7} width={left + 14} height={2 * half + 14}
                       rx={9} style={{ fill: 'var(--flash-glow)' }} opacity={0.3} />
             )}
-            <rect x={x - width} y={y - height / 2} width={width} height={height} rx={4}
+            {/* input leads from the ports to the curved back of OR/XOR (hidden under AND's flat back) */}
+            {!isNot && [-20, 20].map(dy => (
+                <line key={dy} x1={x - 50} y1={y + dy} x2={x - 40} y2={y + dy}
+                      style={{ stroke }} strokeWidth={lineWidth} />
+            ))}
+            {c.kind === 'XOR' && (
+                <path d={`M${x - 52},${y - 25} Q${x - 38},${y} ${x - 52},${y + 25}`}
+                      style={{ fill: 'none', stroke }} strokeWidth={lineWidth} />
+            )}
+            <path d={gateBody(c.kind, x, y)} strokeLinejoin="round"
                   style={{ fill: face, stroke }} strokeWidth={lineWidth} />
-            <text x={x - width / 2} y={y} className="gate-symbol" fontSize={16} style={{ fill: symbolColor }}>
-                {SYMBOL[c.kind]}
-            </text>
-            {c.kind === 'NOT' && (
-                <circle cx={x + 6} cy={y} r={5} style={{ fill: 'var(--panel2)', stroke }} strokeWidth={lineWidth} />
+            {isNot ? (
+                <circle cx={x - 5} cy={y} r={5} style={{ fill: face, stroke }} strokeWidth={lineWidth} />
+            ) : (
+                <text x={x - LABEL_X[c.kind]} y={y} className="gate-symbol" fontSize={10} style={{ fill: symbolColor }}>
+                    {c.kind}
+                </text>
             )}
             {tag != null && (
-                <text x={x - width} y={y - height / 2 - 8} className="gate-tag" style={{ fill: stroke }}>
+                <text x={x - left} y={y - half - 8} className="gate-tag" style={{ fill: stroke }}>
                     #{tag}
                 </text>
             )}

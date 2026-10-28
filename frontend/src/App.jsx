@@ -15,6 +15,14 @@ const GREETING = 'Hey -- I build live, clickable circuit simulations for CSCI-33
     'plus a Logisim file to match. Here\'s a half adder to try: click A or B to toggle ' +
     'them. Then type what you need below, e.g. "build a full adder" or "what is a mux".';
 
+// Shown above the keyword-matcher reply when the AI turned the request away.
+const BUSY_NOTICE = {
+    rate_limited: '(You\'re sending messages quickly -- the AI tutor needs a minute, so this ' +
+        'answer comes from the built-in matcher.)',
+    quota_exhausted: '(The AI tutor has hit its usage limit for now, so this answer comes from ' +
+        'the built-in matcher. Circuits, simulation and .circ files still work.)',
+};
+
 function initialInputs(circuit) {
     return Object.fromEntries(inputLabels(circuit).map(label => [label, 0]));
 }
@@ -72,8 +80,10 @@ export default function App() {
             });
             const opensCircuit = ai.circuitKey && (ai.intent === 'build' || ai.circuitKey !== circuitKey);
             reply = { text: ai.reply, circuitKey: opensCircuit ? ai.circuitKey : null };
-        } catch {
+        } catch (err) {
             reply = respond(text);
+            const notice = BUSY_NOTICE[err?.code];
+            if (notice) reply = { ...reply, text: `${notice}\n\n${reply.text}` };
         } finally {
             setThinking(false);
         }

@@ -10,6 +10,32 @@ const MAX_MESSAGE_CHARS = 500;
 const MAX_HISTORY = 6;
 const TIMEOUT_MS = 15000;
 
+// Per-visitor limits so one student (or a script) can't burn the shared Gemini
+// quota. Counts live in this instance's memory, so they're best-effort: a cold
+// start or a second instance starts fresh. Pair with a Vercel Firewall rule for
+// a hard limit.
+const LIMITS = [
+    { windowMs: 60 * 1000, max: 6 },
+    { windowMs: 24 * 60 * 60 * 1000, max: 60 },
+];
+const hits = new Map(); // ip -> timestamps of recent requests
+
+function rateLimited(ip, now = Date.now()) {
+    const longest = LIMITS[LIMITS.length - 1].windowMs;
+    const recent = (hits.get(ip) ?? []).filter(t => now - t < longest);
+    const blocked = LIMITS.some(({ windowMs, max }) => recent.filter(t => now - t < windowMs).length >= max);
+    if (!blocked) recent.push(now);
+    hits.set(ip, recent);
+    if (hits.size > 5000) { // drop idle visitors so memory stays bounded
+        for (const [key, times] of hits) if (!times.some(t => now - t < longest)) hits.delete(key);
+    }
+    return blocked;
+}
+
+function clientIp(request) {
+    return request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+}
+
 function json(data, status = 200) {
     return Response.json(data, { status });
 }
@@ -46,6 +72,7 @@ function cleanText(value, max) {
 export async function POST(request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return json({ error: 'not_configured' }, 503);
+    if (rateLimited(clientIp(request))) return json({ error: 'rate_limited' }, 429);
 
     let body;
     try {
@@ -104,6 +131,7 @@ export async function POST(request) {
 
     if (!upstream.ok) {
         console.error('Gemini error', upstream.status, await upstream.text().catch(() => ''));
+        if (upstream.status === 429) return json({ error: 'quota_exhausted' }, 429);
         return json({ error: 'upstream_error', status: upstream.status }, 502);
     }
 

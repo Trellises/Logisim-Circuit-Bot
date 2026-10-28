@@ -29,7 +29,7 @@ export default function ChatPanel({ messages, onSend, thinking }) {
                 {thinking && <div className="entry thinking"><span className="who-bot">bot&gt; </span>thinking…</div>}
             </div>
             <form className="input-row" onSubmit={handleSubmit}>
-                <input type="text" autoComplete="off" value={draft}
+                <input type="text" autoComplete="off" value={draft} maxLength={500}
                        onChange={e => setDraft(e.target.value)}
                        placeholder="Describe the circuit you need..." />
                 <button className="primary-btn" type="submit" disabled={thinking}>Send</button>

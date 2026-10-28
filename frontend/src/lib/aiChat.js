@@ -28,6 +28,14 @@ export async function askAI({ message, history, current }) {
     }
 
     if (res.status === 404 || res.status === 405 || res.status === 503) unavailable = true;
+    if (res.status === 429) {
+        // rate_limited: this visitor is sending too fast; quota_exhausted: the
+        // shared Gemini quota is used up. Both pass, so keep trying later.
+        const { error } = await res.json().catch(() => ({}));
+        const err = new Error('AI busy');
+        err.code = error === 'rate_limited' ? 'rate_limited' : 'quota_exhausted';
+        throw err;
+    }
     if (!res.ok) throw new Error(`AI request failed (${res.status})`);
     const data = await res.json().catch(() => null);
     if (typeof data?.reply !== 'string') {

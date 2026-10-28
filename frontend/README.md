@@ -31,7 +31,18 @@ serverless function, redeploying on every push.
 5. Deploy. Every later `git push` redeploys automatically.
 
 Keep the Gemini project on the free tier (no billing enabled): anyone who finds
-the site can send messages, so the free quota is the spending cap.
+the site can send messages, so the free quota is the spending cap. (A Google AI
+Pro / Gemini app subscription doesn't change API limits -- the API is billed
+separately.)
+
+### Usage limits
+
+- `api/chat.js` allows each visitor 6 AI messages a minute and 60 a day
+  (`LIMITS`). Counts are kept in memory, so they're best-effort; for a hard
+  limit add a Vercel **Firewall → Rate limiting** rule on `/api/chat`.
+- When a visitor is limited, or Gemini's own quota runs out, the bot says so and
+  answers with the keyword matcher instead. Circuits, simulation and `.circ`
+  files never need the AI.
 
 ## Other builds
 
