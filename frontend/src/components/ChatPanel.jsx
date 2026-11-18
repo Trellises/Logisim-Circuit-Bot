@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { MODELS } from '../lib/aiChat';
 
 export default function ChatPanel({ messages, onSend, thinking }) {
     const [draft, setDraft] = useState('');
+    const [modelId, setModelId] = useState(MODELS[0].id);
     const logRef = useRef(null);
 
     useEffect(() => {
@@ -14,7 +16,7 @@ export default function ChatPanel({ messages, onSend, thinking }) {
         const text = draft.trim();
         if (!text || thinking) return;
         setDraft('');
-        onSend(text);
+        onSend(text, modelId);
     }
 
     return (
@@ -27,6 +29,11 @@ export default function ChatPanel({ messages, onSend, thinking }) {
                     </div>
                 ))}
                 {thinking && <div className="entry thinking"><span className="who-bot">bot&gt; </span>thinking…</div>}
+            </div>
+            <div className="model-row">
+                <select className="model-select" value={modelId} onChange={e => setModelId(e.target.value)} aria-label="AI model">
+                    {MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
             </div>
             <form className="input-row" onSubmit={handleSubmit}>
                 <input type="text" autoComplete="off" value={draft} maxLength={500}

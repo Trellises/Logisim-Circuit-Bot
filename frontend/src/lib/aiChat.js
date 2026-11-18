@@ -10,16 +10,25 @@ let unavailable = false;
 
 const CATALOG = CHIP_LIST.map(key => ({ key, title: META[key].title, info: GATE_INFO[key] }));
 
+export const MODELS = [
+    { id: 'gemini-2.5-flash', provider: 'gemini', label: 'Gemini 2.5 Flash (cloud)' },
+    { id: 'gemini-2.0-flash', provider: 'gemini', label: 'Gemini 2.0 Flash (cloud)' },
+    { id: 'gemma3',           provider: 'ollama', label: 'Gemma 3 (local Ollama)' },
+    { id: 'llama3.2',         provider: 'ollama', label: 'Llama 3.2 (local Ollama)' },
+];
+
 // Returns {reply, intent, circuitKey}; throws when the AI can't answer.
-export async function askAI({ message, history, current }) {
+export async function askAI({ message, history, current, modelId = MODELS[0].id }) {
     if (unavailable) throw new Error('AI unavailable');
+
+    const model = MODELS.find(m => m.id === modelId) ?? MODELS[0];
 
     let res;
     try {
         res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ message, history, current, circuits: CATALOG }),
+            body: JSON.stringify({ message, history, current, circuits: CATALOG, provider: model.provider, modelId: model.id }),
             signal: AbortSignal.timeout(TIMEOUT_MS),
         });
     } catch (err) {

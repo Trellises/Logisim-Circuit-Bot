@@ -1,11 +1,14 @@
-// POST /api/chat -- the app's only server code. It holds the Gemini API key
-// (never sent to the browser) and asks Gemini to pick a circuit from the
-// library and write a reply. Runs as a Vercel Function in production and
-// through the dev-server middleware in vite.config.js locally.
+// POST /api/chat -- the app's only server code. Routes to Gemini (cloud) or
+// Ollama (local) based on the `provider` field in the request body. Runs as a
+// Vercel Function in production and through the dev-server middleware in
+// vite.config.js locally.
 //
-// Env: GEMINI_API_KEY (required), GEMINI_MODEL (optional).
+// Env (Gemini): GEMINI_API_KEY (required for gemini provider), GEMINI_MODEL (optional).
+// Env (Ollama): OLLAMA_HOST (optional, default http://localhost:11434).
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
+const OLLAMA_TIMEOUT_MS = 60000; // local models can be slow
 const MAX_MESSAGE_CHARS = 500;
 const MAX_HISTORY = 6;
 const TIMEOUT_MS = 15000;
@@ -69,9 +72,67 @@ function cleanText(value, max) {
     return String(value ?? '').trim().slice(0, max);
 }
 
+async function callGemini(modelId, apiKey, sysPrompt, userMsg, keys) {
+    const upstream = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+                systemInstruction: { parts: [{ text: sysPrompt }] },
+                contents: [{ role: 'user', parts: [{ text: userMsg }] }],
+                generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 2048,
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: 'OBJECT',
+                        properties: {
+                            intent: { type: 'STRING', enum: ['build', 'explain', 'chat'] },
+                            circuitKey: { type: 'STRING', enum: [...keys, 'none'] },
+                            reply: { type: 'STRING' },
+                        },
+                        required: ['intent', 'circuitKey', 'reply'],
+                    },
+                },
+            }),
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        },
+    );
+    if (!upstream.ok) {
+        console.error('Gemini error', upstream.status, await upstream.text().catch(() => ''));
+        if (upstream.status === 429) throw Object.assign(new Error('quota'), { code: 'quota_exhausted' });
+        throw Object.assign(new Error('upstream_error'), { status: upstream.status });
+    }
+    const data = await upstream.json();
+    const text = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
+    return JSON.parse(text);
+}
+
+async function callOllama(modelId, sysPrompt, userMsg) {
+    const upstream = await fetch(`${OLLAMA_HOST}/api/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+            model: modelId,
+            messages: [
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userMsg },
+            ],
+            stream: false,
+            format: 'json',
+        }),
+        signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
+    });
+    if (!upstream.ok) {
+        console.error('Ollama error', upstream.status, await upstream.text().catch(() => ''));
+        throw Object.assign(new Error('upstream_error'), { status: upstream.status });
+    }
+    const data = await upstream.json();
+    return JSON.parse(data.message?.content ?? '{}');
+}
+
 export async function POST(request) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return json({ error: 'not_configured' }, 503);
     if (rateLimited(clientIp(request))) return json({ error: 'rate_limited' }, 429);
 
     let body;
@@ -79,6 +140,14 @@ export async function POST(request) {
         body = await request.json();
     } catch {
         return json({ error: 'bad_request' }, 400);
+    }
+
+    const provider = body?.provider === 'ollama' ? 'ollama' : 'gemini';
+    const modelId = cleanText(body?.modelId, 60) || (provider === 'ollama' ? 'gemma3' : DEFAULT_GEMINI_MODEL);
+
+    if (provider === 'gemini') {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) return json({ error: 'not_configured' }, 503);
     }
 
     const message = cleanText(body?.message, MAX_MESSAGE_CHARS);
@@ -96,49 +165,22 @@ export async function POST(request) {
         ? { key: body.current.key, inputs: body.current.inputs ?? {}, outputs: body.current.outputs ?? {} }
         : null;
 
-    let upstream;
+    const sysPrompt = systemPrompt(circuits);
+    const userMsg = userPrompt(message, history, current);
+
+    let parsed;
     try {
-        upstream = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-            {
-                method: 'POST',
-                headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-                body: JSON.stringify({
-                    systemInstruction: { parts: [{ text: systemPrompt(circuits) }] },
-                    contents: [{ role: 'user', parts: [{ text: userPrompt(message, history, current) }] }],
-                    generationConfig: {
-                        temperature: 0.3,
-                        maxOutputTokens: 2048,
-                        responseMimeType: 'application/json',
-                        responseSchema: {
-                            type: 'OBJECT',
-                            properties: {
-                                intent: { type: 'STRING', enum: ['build', 'explain', 'chat'] },
-                                circuitKey: { type: 'STRING', enum: [...keys, 'none'] },
-                                reply: { type: 'STRING' },
-                            },
-                            required: ['intent', 'circuitKey', 'reply'],
-                        },
-                    },
-                }),
-                signal: AbortSignal.timeout(TIMEOUT_MS),
-            },
-        );
+        parsed = provider === 'ollama'
+            ? await callOllama(modelId, sysPrompt, userMsg)
+            : await callGemini(modelId, process.env.GEMINI_API_KEY, sysPrompt, userMsg, keys);
     } catch (err) {
-        console.error('Gemini request failed:', err);
-        return json({ error: 'upstream_unreachable' }, 502);
-    }
-
-    if (!upstream.ok) {
-        console.error('Gemini error', upstream.status, await upstream.text().catch(() => ''));
-        if (upstream.status === 429) return json({ error: 'quota_exhausted' }, 429);
-        return json({ error: 'upstream_error', status: upstream.status }, 502);
+        console.error(`${provider} request failed:`, err);
+        if (err?.code === 'quota_exhausted') return json({ error: 'quota_exhausted' }, 429);
+        if (err?.name === 'TimeoutError') return json({ error: 'upstream_unreachable' }, 502);
+        return json({ error: 'upstream_error', status: err?.status }, 502);
     }
 
     try {
-        const data = await upstream.json();
-        const text = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
-        const parsed = JSON.parse(text);
         const reply = cleanText(parsed.reply, 2000);
         if (!reply) throw new Error('empty reply');
         return json({
@@ -147,7 +189,7 @@ export async function POST(request) {
             circuitKey: keys.includes(parsed.circuitKey) ? parsed.circuitKey : null,
         });
     } catch (err) {
-        console.error('Unusable Gemini response:', err);
+        console.error(`Unusable ${provider} response:`, err);
         return json({ error: 'bad_upstream_response' }, 502);
     }
 }

@@ -134,6 +134,24 @@ body {
 .log .who-bot { color: var(--trace); font-weight: bold; }
 .log .entry { margin-bottom: 10px; }
 
+.model-row {
+    display: flex;
+    margin: 0 10px 4px;
+}
+
+.model-select {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.model-select:focus { outline: 2px solid var(--trace); outline-offset: -1px; }
+
 .input-row {
     display: flex;
     gap: 6px;

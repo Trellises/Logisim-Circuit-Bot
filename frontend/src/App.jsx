@@ -64,13 +64,14 @@ export default function App() {
 
     // Ask the AI (via /api/chat) first; fall back to keyword matching when the
     // server is missing, unconfigured, or fails.
-    async function handleSend(text) {
+    async function handleSend(text, modelId) {
         addMessage('you', text);
         setThinking(true);
         let reply;
         try {
             const ai = await askAI({
                 message: text,
+                modelId,
                 history: messages.filter(m => !m.narration).slice(-6).map(({ who, text: t }) => ({ who, text: t })),
                 current: circuitKey ? {
                     key: circuitKey,

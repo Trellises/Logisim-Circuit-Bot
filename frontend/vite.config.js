@@ -7,6 +7,11 @@ function apiDevServer() {
     return {
         name: 'api-dev-server',
         configureServer(server) {
+            if (!process.env.GEMINI_API_KEY) {
+                server.config.logger.warn('\n  GEMINI_API_KEY is not set -- Gemini models will answer "not_configured" ' +
+                    'and fall back to keyword matching.\n  For local models, start Ollama and select a Gemma/Llama option in the UI.\n  ' +
+                    'To use Gemini, paste your key into frontend/.env and restart `npm run dev`.\n');
+            }
             server.middlewares.use('/api/chat', async (req, res) => {
                 try {
                     if (req.method !== 'POST') {
